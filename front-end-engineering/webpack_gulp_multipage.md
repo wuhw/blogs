@@ -62,28 +62,48 @@ express所要承担的任务我们也将其注册在gulpfile.js中，我们将�
     gulp.task('server', ['sass'], function() {
         var app = express();
         //处理html的请求
-        //配置项目首页
-        app.use('/', function(req, res) {
-            res.sendFile(path.resolve('src/index.html'))
-        });
-        //处理其他的html请求
-        app.use('.+.html$', function(req, res) {
+        app.use('/', function(req, res, next) {
             //req是http.ServerResponse的实例，res是http.IncomingMessage的实例
             //express 对这两个实例进行了分装
 
-            //http://www.aa.bb.com/path/demo.html --> requestUrl=/path/demo.html
-            var requestUrl = req.originalUrl;
-            //如果index.html 不是跟其他html放在同一目录下的话单独处理
-            //在这个项目中，index.html放在src目录下，而其他页面放在src/app目录下
-            if (requestUrl.indexOf('index.html') > -1) {
-                res.sendFile(path.resolve('src/index.html'));
+            //http://www.aa.bb.com/path/demo.html?a=b --> originalUrl=/path/demo.html?a=b;path=/path/demo.html
+            var requestUrl = req.path;
+            if (requestUrl === '/') {
+                //如果访问网站根目录则给出默认的首页
+            } else if (/.+\.html$/.test(requestUrl)) {
+                //如果是html，则根据path返回相应的html
             } else {
-                res.sendFile(path.resolve('src/app', requestUrl));
+                next();
             }
         });
         //至此，html的请求处理完成
         
         //处理ajax异步请求
+        app.use('/', function(req, res, next) {
+            var path = req.path;
+            if (/.+\.do$/.test(path)) {
+                //根据path返回mock好的数据
+            } else {
+                next();
+            }
+        });
+        //ajax请求处理结束
+
+        //静态资源的请求
+        //因为此构建中，js是用webpack来管理的，所以对于js的请求，这里将通过request  node中间件转发请求到webpack-dev-server,其他静态资源则通过express.static来进行管理
+
+
+        //处理js  为了符合人类对静态资源的引用思维，在html直接通过'/js/**/*.js'引用js
+        app.use('/js', function(req, res, next) {
+            var path = req.path;
+            if (/.+\.js/.test(path)) {
+                //通过request转发请求到webpack－dev－server:
+                var requestUrl = `http://{host}:{port}/js/{path}`;
+                var request = require('request');
+                request(requestUrl).pipe(res);
+            }
+        });
+        //js处理完毕
 
 
     });
